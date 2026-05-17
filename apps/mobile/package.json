@@ -1,0 +1,32 @@
+{
+  "name": "@party-up/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "prestart": "npm run build -w @party-up/domain",
+    "start": "expo start",
+    "preios": "npm run build -w @party-up/domain",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
+    "@expo-google-fonts/manrope": "^0.4.2",
+    "@party-up/domain": "0.1.0",
+    "expo": "^54.0.23",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-status-bar": "~3.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-svg": "15.12.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "^5.9.3"
+  }
+}

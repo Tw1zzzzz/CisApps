@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PLAYER
+  ADMIN
+}
+
+enum ProfileVisibility {
+  VISIBLE
+  HIDDEN
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESTRICTED
+}
+
+enum Provider {
+  FACEIT
+  STEAM
+}
+
+enum LikeAction {
+  LIKE
+  PASS
+  SUPER_LIKE
+}
+
+model User {
+  id        String         @id @default(cuid())
+  email     String         @unique
+  role      UserRole       @default(PLAYER)
+  profile   PlayerProfile?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model OtpChallenge {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  otpHash   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model PlayerProfile {
+  id               String            @id @default(cuid())
+  userId           String            @unique
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nickname         String            @unique
+  displayName      String
+  age              Int
+  region           String
+  bio              String            @default("")
+  languages        String[]
+  visibility       ProfileVisibility @default(VISIBLE)
+  moderationStatus ModerationStatus  @default(PENDING)
+  isOnline         Boolean           @default(false)
+  isVerified       Boolean           @default(false)
+  avatarHue        Int               @default(210)
+  gameProfile      GameProfile?
+  contacts         ProfileContact[]
+  providerAccounts ProviderAccount[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([region, visibility, moderationStatus])
+  @@index([isOnline, isVerified])
+}
+
+model GameProfile {
+  id           String        @id @default(cuid())
+  profileId    String        @unique
+  profile      PlayerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  game         String
+  role         String
+  elo          Int
+  peakElo      Int?
+  maps         String[]
+  availability String
+  hasMic       Boolean       @default(false)
+  hours        Int?
+
+  @@index([game, role, elo])
+}
+
+model ProfileContact {
+  id        String        @id @default(cuid())
+  profileId String
+  profile   PlayerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type      String
+  value     String
+  isPrivate Boolean       @default(true)
+}
+
+model ProviderAccount {
+  id             String        @id @default(cuid())
+  profileId      String
+  profile        PlayerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  provider       Provider
+  providerUserId String?
+  nickname       String
+  profileUrl     String?
+  verified       Boolean       @default(false)
+  linkedAt       DateTime      @default(now())
+
+  @@unique([provider, providerUserId])
+  @@index([profileId, provider])
+}
+
+model Like {
+  id        String     @id @default(cuid())
+  actorId   String
+  targetId  String
+  action    LikeAction
+  createdAt DateTime   @default(now())
+
+  @@unique([actorId, targetId])
+  @@index([targetId, action])
+}
+
+model Match {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userAId, userBId])
+}

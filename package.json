@@ -1,0 +1,25 @@
+{
+  "name": "party-up",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @party-up/api",
+    "dev:mobile": "npm run start -w @party-up/mobile",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "pretest": "npm run build -w @party-up/domain",
+    "test": "npm run test --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate -w @party-up/api",
+    "prisma:migrate": "npm run prisma:migrate -w @party-up/api",
+    "prisma:seed": "npm run prisma:seed -w @party-up/api"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
