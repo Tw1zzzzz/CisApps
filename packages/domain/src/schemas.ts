@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { CONTACT_TYPES, CS2_MAPS, CS2_ROLES, LANGUAGES, REGIONS } from "./constants.js";
+import {
+  APPLICATION_STATUSES,
+  CONTACT_TYPES,
+  CS2_MAPS,
+  CS2_ROLES,
+  LANGUAGES,
+  ORGANIZATION_TYPES,
+  RECRUITER_ROLES,
+  REGIONS,
+  USER_INTENTS
+} from "./constants.js";
 
 export const emailSchema = z.string().trim().email().max(254);
 
@@ -36,6 +46,7 @@ export const updateProfileSchema = z.object({
   bio: z.string().trim().min(0).max(280).optional(),
   languages: z.array(z.enum(LANGUAGES)).min(1).max(4).optional(),
   contacts: z.array(profileContactSchema).max(6).optional(),
+  openToOrganizations: z.boolean().optional(),
   gameProfile: z.object({
     role: z.enum(CS2_ROLES).optional(),
     elo: z.number().int().min(0).max(5000).optional(),
@@ -55,6 +66,7 @@ export const createProfileSchema = z.object({
   bio: z.string().trim().min(20).max(280),
   languages: z.array(z.enum(LANGUAGES)).min(1).max(4),
   contacts: z.array(profileContactSchema).max(6).default([]),
+  openToOrganizations: z.boolean().default(true),
   gameProfile: z.object({
     role: z.enum(CS2_ROLES),
     elo: z.number().int().min(0).max(5000),
@@ -66,6 +78,58 @@ export const createProfileSchema = z.object({
   })
 });
 
+export const setUserIntentSchema = z.object({
+  intent: z.enum(USER_INTENTS)
+});
+
+export const createRecruiterProfileSchema = z.object({
+  role: z.enum(RECRUITER_ROLES),
+  displayName: z.string().trim().min(2).max(40),
+  contacts: z.array(profileContactSchema).max(6).default([])
+});
+
+const organizationSchemaShape = {
+  type: z.enum(ORGANIZATION_TYPES),
+  name: z.string().trim().min(2).max(48),
+  game: z.literal("cs2").default("cs2"),
+  region: z.enum(REGIONS),
+  targetEloMin: z.number().int().min(0).max(5000),
+  targetEloMax: z.number().int().min(0).max(5000),
+  neededRoles: z.array(z.enum(CS2_ROLES)).min(1).max(6),
+  languages: z.array(z.enum(LANGUAGES)).min(1).max(4),
+  description: z.string().trim().min(20).max(400),
+  isRecruiting: z.boolean().default(true)
+};
+
+export const createOrganizationSchema = z.object(organizationSchemaShape).refine((value) => value.targetEloMin <= value.targetEloMax, {
+  message: "targetEloMin must be less than or equal to targetEloMax",
+  path: ["targetEloMin"]
+});
+
+export const updateOrganizationSchema = z.object(organizationSchemaShape).partial().refine((value) => {
+  if (value.targetEloMin === undefined || value.targetEloMax === undefined) return true;
+  return value.targetEloMin <= value.targetEloMax;
+}, {
+  message: "targetEloMin must be less than or equal to targetEloMax",
+  path: ["targetEloMin"]
+});
+
+export const organizationParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const applicationParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const createTeamApplicationSchema = z.object({
+  message: z.string().trim().min(0).max(300).default("")
+});
+
+export const updateApplicationStatusSchema = z.object({
+  status: z.enum(["accepted", "rejected"])
+});
+
 export const likeTargetParamsSchema = z.object({
   id: z.string().min(1)
 });
@@ -73,3 +137,9 @@ export const likeTargetParamsSchema = z.object({
 export type ParsedDiscoveryFilters = z.infer<typeof discoveryFiltersSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type CreateProfileInput = z.infer<typeof createProfileSchema>;
+export type SetUserIntentInput = z.infer<typeof setUserIntentSchema>;
+export type CreateRecruiterProfileInput = z.infer<typeof createRecruiterProfileSchema>;
+export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
+export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
+export type CreateTeamApplicationInput = z.infer<typeof createTeamApplicationSchema>;
+export type UpdateApplicationStatusInput = z.infer<typeof updateApplicationStatusSchema>;

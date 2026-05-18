@@ -35,13 +35,40 @@ enum LikeAction {
   SUPER_LIKE
 }
 
+enum UserIntent {
+  PLAYER
+  RECRUITER
+}
+
+enum RecruiterRole {
+  MANAGER
+  COACH
+  ANALYST
+}
+
+enum OrganizationType {
+  MIX
+  STACK
+  TEAM
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
 model User {
-  id        String         @id @default(cuid())
-  email     String         @unique
-  role      UserRole       @default(PLAYER)
-  profile   PlayerProfile?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id               String               @id @default(cuid())
+  email            String               @unique
+  role             UserRole             @default(PLAYER)
+  intent           UserIntent?
+  profile          PlayerProfile?
+  recruiterProfile RecruiterProfile?
+  organization     OrganizationProfile?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 }
 
 model OtpChallenge {
@@ -56,25 +83,27 @@ model OtpChallenge {
 }
 
 model PlayerProfile {
-  id               String            @id @default(cuid())
-  userId           String            @unique
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  nickname         String            @unique
-  displayName      String
-  age              Int
-  region           String
-  bio              String            @default("")
-  languages        String[]
-  visibility       ProfileVisibility @default(VISIBLE)
-  moderationStatus ModerationStatus  @default(PENDING)
-  isOnline         Boolean           @default(false)
-  isVerified       Boolean           @default(false)
-  avatarHue        Int               @default(210)
-  gameProfile      GameProfile?
-  contacts         ProfileContact[]
-  providerAccounts ProviderAccount[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                  String            @id @default(cuid())
+  userId              String            @unique
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nickname            String            @unique
+  displayName         String
+  age                 Int
+  region              String
+  bio                 String            @default("")
+  languages           String[]
+  visibility          ProfileVisibility @default(VISIBLE)
+  moderationStatus    ModerationStatus  @default(PENDING)
+  isOnline            Boolean           @default(false)
+  isVerified          Boolean           @default(false)
+  openToOrganizations Boolean           @default(true)
+  avatarHue           Int               @default(210)
+  gameProfile         GameProfile?
+  contacts            ProfileContact[]
+  providerAccounts    ProviderAccount[]
+  applications        TeamApplication[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([region, visibility, moderationStatus])
   @@index([isOnline, isVerified])
@@ -138,4 +167,54 @@ model Match {
   createdAt DateTime @default(now())
 
   @@unique([userAId, userBId])
+}
+
+model RecruiterProfile {
+  id          String        @id @default(cuid())
+  userId      String        @unique
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        RecruiterRole
+  displayName String
+  contacts    Json          @default("[]")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model OrganizationProfile {
+  id               String            @id @default(cuid())
+  ownerUserId      String            @unique
+  owner            User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  type             OrganizationType
+  name             String
+  game             String
+  region           String
+  targetEloMin     Int
+  targetEloMax     Int
+  neededRoles      String[]
+  languages        String[]
+  description      String
+  isRecruiting     Boolean           @default(true)
+  visibility       ProfileVisibility @default(VISIBLE)
+  moderationStatus ModerationStatus  @default(PENDING)
+  applications     TeamApplication[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([game, region, isRecruiting, visibility, moderationStatus])
+}
+
+model TeamApplication {
+  id              String              @id @default(cuid())
+  organizationId  String
+  organization    OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  playerProfileId String
+  playerProfile   PlayerProfile       @relation(fields: [playerProfileId], references: [id], onDelete: Cascade)
+  message         String              @default("")
+  status          ApplicationStatus   @default(PENDING)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([organizationId, playerProfileId])
+  @@index([organizationId, status])
+  @@index([playerProfileId, status])
 }

@@ -6,6 +6,7 @@ import { registerAuthRoutes } from "./auth/routes.js";
 import { registerDiscoveryRoutes } from "./discovery/routes.js";
 import { registerLikeRoutes } from "./likes/routes.js";
 import { registerMatchRoutes } from "./matches/routes.js";
+import { registerOrganizationRoutes } from "./organizations/routes.js";
 import { registerProfileRoutes } from "./profiles/routes.js";
 import { createInMemoryStore, type PartyUpStore } from "./store/inMemoryStore.js";
 
@@ -25,6 +26,7 @@ export async function buildApp(store: PartyUpStore = createInMemoryStore()) {
   await registerDiscoveryRoutes(app, store);
   await registerLikeRoutes(app, store);
   await registerMatchRoutes(app, store);
+  await registerOrganizationRoutes(app, store);
 
   app.get("/health", async () => ({ ok: true }));
 

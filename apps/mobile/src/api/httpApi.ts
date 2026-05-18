@@ -1,4 +1,16 @@
-import type { DiscoveryFilters, LikeAction, LikeSummaryDto, MatchSummaryDto, PrivateProfileDto, PublicDiscoveryProfileDto, User } from "@party-up/domain";
+import type {
+  DiscoveryFilters,
+  LikeAction,
+  LikeSummaryDto,
+  MatchSummaryDto,
+  OrganizationFeedItemDto,
+  OrganizationProfile,
+  PrivateProfileDto,
+  PublicDiscoveryProfileDto,
+  RecruiterProfile,
+  TeamApplicationDto,
+  User
+} from "@party-up/domain";
 import type { PartyUpApi, PartyUpAuthApi } from "./types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -17,6 +29,10 @@ export function createHttpAuthApi(): PartyUpAuthApi {
 export function createHttpApi(token: string): PartyUpApi {
   return {
     getMe: () => request<PrivateProfileDto>("/me", { token }),
+    async setUserIntent(input) {
+      const response = await request<{ user: User }>("/me/intent", { token, method: "PATCH", body: input });
+      return response.user;
+    },
     createProfile: (input) => request<PrivateProfileDto>("/me/profile", { token, method: "POST", body: input }),
     updateProfile: (input) => request<PrivateProfileDto>("/me/profile", { token, method: "PATCH", body: input }),
     async getDiscovery(filters: DiscoveryFilters) {
@@ -42,6 +58,54 @@ export function createHttpApi(token: string): PartyUpApi {
     async getChats() {
       const response = await request<{ chats: MatchSummaryDto[] }>("/chats", { token });
       return response.chats;
+    },
+    async createRecruiterProfile(input) {
+      const response = await request<{ recruiterProfile: RecruiterProfile }>("/me/recruiter-profile", { token, method: "POST", body: input });
+      return response.recruiterProfile;
+    },
+    async getRecruiterProfile() {
+      const response = await request<{ recruiterProfile: RecruiterProfile | null }>("/me/recruiter-profile", { token });
+      return response.recruiterProfile;
+    },
+    async createOrganization(input) {
+      const response = await request<{ organization: OrganizationProfile }>("/me/organization", { token, method: "POST", body: input });
+      return response.organization;
+    },
+    async updateOrganization(input) {
+      const response = await request<{ organization: OrganizationProfile }>("/me/organization", { token, method: "PATCH", body: input });
+      return response.organization;
+    },
+    async getMyOrganization() {
+      const response = await request<{ organization: OrganizationProfile | null }>("/me/organization", { token });
+      return response.organization;
+    },
+    async getOrganizationFeed() {
+      const response = await request<{ organizations: OrganizationFeedItemDto[] }>("/organizations/feed", { token });
+      return response.organizations;
+    },
+    async applyToOrganization(organizationId, message) {
+      const response = await request<{ application: TeamApplicationDto }>(`/organizations/${organizationId}/apply`, {
+        token,
+        method: "POST",
+        body: { message }
+      });
+      return response.application;
+    },
+    async getMyApplications() {
+      const response = await request<{ applications: TeamApplicationDto[] }>("/me/applications", { token });
+      return response.applications;
+    },
+    async getOrganizationApplications() {
+      const response = await request<{ applications: TeamApplicationDto[] }>("/organization/applications", { token });
+      return response.applications;
+    },
+    async updateApplicationStatus(applicationId, status) {
+      const response = await request<{ application: TeamApplicationDto }>(`/organization/applications/${applicationId}/status`, {
+        token,
+        method: "PATCH",
+        body: { status }
+      });
+      return response.application;
     }
   };
 }

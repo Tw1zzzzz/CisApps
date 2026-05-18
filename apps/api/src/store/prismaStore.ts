@@ -1,16 +1,26 @@
-import { LikeAction as PrismaLikeAction, ModerationStatus, ProfileVisibility, type Prisma, type PrismaClient } from "@prisma/client";
+import { ApplicationStatus as PrismaApplicationStatus, LikeAction as PrismaLikeAction, ModerationStatus, ProfileVisibility, type Prisma, type PrismaClient } from "@prisma/client";
 import {
   discoveryFiltersSchema,
   toPrivateProfileDto,
   toPublicDiscoveryProfile,
+  type CreateOrganizationInput,
   type CreateProfileInput,
+  type CreateRecruiterProfileInput,
+  type CreateTeamApplicationInput,
   type DiscoveryFilters,
   type LikeAction,
   type LikeSummaryDto,
   type Match,
   type MatchSummaryDto,
+  type OrganizationFeedItemDto,
+  type OrganizationProfile,
   type PrivateProfileDto,
   type PublicDiscoveryProfileDto,
+  type RecruiterProfile,
+  type SetUserIntentInput,
+  type TeamApplicationDto,
+  type UpdateApplicationStatusInput,
+  type UpdateOrganizationInput,
   type UpdateProfileInput,
   type User
 } from "@party-up/domain";
@@ -18,10 +28,19 @@ import { HttpError } from "../http/errors.js";
 import type { PartyUpStore } from "./inMemoryStore.js";
 import {
   playerProfileInclude,
+  toDomainApplicationStatus,
+  toDomainOrganizationProfile,
   toDomainMatch,
   toDomainPlayerProfile,
+  toDomainRecruiterProfile,
   toDomainUser,
-  toPrismaLikeAction
+  toPrismaApplicationStatus,
+  toPrismaLikeAction,
+  toPrismaModerationStatus,
+  toPrismaOrganizationType,
+  toPrismaRecruiterRole,
+  toPrismaUserIntent,
+  toPublicOrganizationDto
 } from "./prismaMappers.js";
 
 const OTP_TTL_MS = 1000 * 60 * 10;
@@ -78,6 +97,14 @@ export function createPrismaStore(prisma: PrismaClient): PartyUpStore {
       return user ? toDomainUser(user) : null;
     },
 
+    async setUserIntent(userId, input: SetUserIntentInput): Promise<User> {
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: { intent: toPrismaUserIntent(input.intent) }
+      });
+      return toDomainUser(user);
+    },
+
     getPrivateProfile,
 
     async createProfile(userId, input: CreateProfileInput): Promise<PrivateProfileDto> {
@@ -109,6 +136,7 @@ export function createPrismaStore(prisma: PrismaClient): PartyUpStore {
           moderationStatus: ModerationStatus.APPROVED,
           isOnline: true,
           isVerified: false,
+          openToOrganizations: input.openToOrganizations,
           avatarHue: hueFromString(input.nickname),
           contacts: {
             create: input.contacts
@@ -146,6 +174,7 @@ export function createPrismaStore(prisma: PrismaClient): PartyUpStore {
         if (input.region !== undefined) profileData.region = input.region;
         if (input.bio !== undefined) profileData.bio = input.bio;
         if (input.languages !== undefined) profileData.languages = input.languages;
+        if (input.openToOrganizations !== undefined) profileData.openToOrganizations = input.openToOrganizations;
         if (input.contacts !== undefined) {
           profileData.contacts = {
             deleteMany: {},
@@ -335,8 +364,211 @@ export function createPrismaStore(prisma: PrismaClient): PartyUpStore {
           lastMessage: null
         }];
       });
+    },
+
+    async createRecruiterProfile(userId, input: CreateRecruiterProfileInput): Promise<RecruiterProfile> {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) throw new HttpError(401, "Sign in to continue.");
+
+      const profile = await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: userId },
+          data: { intent: toPrismaUserIntent("recruiter") }
+        });
+
+        return tx.recruiterProfile.create({
+          data: {
+            userId,
+            role: toPrismaRecruiterRole(input.role),
+            displayName: input.displayName,
+            contacts: input.contacts
+          }
+        });
+      });
+
+      return toDomainRecruiterProfile(profile);
+    },
+
+    async getRecruiterProfile(userId): Promise<RecruiterProfile | null> {
+      const profile = await prisma.recruiterProfile.findUnique({ where: { userId } });
+      return profile ? toDomainRecruiterProfile(profile) : null;
+    },
+
+    async createOrganization(userId, input: CreateOrganizationInput): Promise<OrganizationProfile> {
+      const recruiter = await prisma.recruiterProfile.findUnique({ where: { userId } });
+      if (!recruiter) throw new HttpError(404, "Recruiter profile not found.");
+
+      const organization = await prisma.organizationProfile.create({
+        data: {
+          ownerUserId: userId,
+          type: toPrismaOrganizationType(input.type),
+          name: input.name,
+          game: input.game,
+          region: input.region,
+          targetEloMin: input.targetEloMin,
+          targetEloMax: input.targetEloMax,
+          neededRoles: input.neededRoles,
+          languages: input.languages,
+          description: input.description,
+          isRecruiting: input.isRecruiting,
+          visibility: ProfileVisibility.VISIBLE,
+          moderationStatus: ModerationStatus.APPROVED
+        }
+      });
+
+      return toDomainOrganizationProfile(organization);
+    },
+
+    async updateOrganization(userId, input: UpdateOrganizationInput): Promise<OrganizationProfile> {
+      const data: Prisma.OrganizationProfileUpdateInput = {};
+      if (input.type !== undefined) data.type = toPrismaOrganizationType(input.type);
+      if (input.name !== undefined) data.name = input.name;
+      if (input.game !== undefined) data.game = input.game;
+      if (input.region !== undefined) data.region = input.region;
+      if (input.targetEloMin !== undefined) data.targetEloMin = input.targetEloMin;
+      if (input.targetEloMax !== undefined) data.targetEloMax = input.targetEloMax;
+      if (input.neededRoles !== undefined) data.neededRoles = input.neededRoles;
+      if (input.languages !== undefined) data.languages = input.languages;
+      if (input.description !== undefined) data.description = input.description;
+      if (input.isRecruiting !== undefined) data.isRecruiting = input.isRecruiting;
+
+      const organization = await prisma.organizationProfile.update({
+        where: { ownerUserId: userId },
+        data
+      });
+
+      return toDomainOrganizationProfile(organization);
+    },
+
+    async getMyOrganization(userId): Promise<OrganizationProfile | null> {
+      const organization = await prisma.organizationProfile.findUnique({ where: { ownerUserId: userId } });
+      return organization ? toDomainOrganizationProfile(organization) : null;
+    },
+
+    async listOrganizationFeed(userId): Promise<OrganizationFeedItemDto[]> {
+      const player = await prisma.playerProfile.findUnique({ where: { userId } });
+      const applications = player
+        ? await prisma.teamApplication.findMany({ where: { playerProfileId: player.id } })
+        : [];
+      const appliedOrganizationIds = new Set(applications.map((application) => application.organizationId));
+      const organizations = await prisma.organizationProfile.findMany({
+        where: {
+          isRecruiting: true,
+          visibility: ProfileVisibility.VISIBLE,
+          moderationStatus: ModerationStatus.APPROVED
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 50
+      });
+
+      return organizations.map((organization) => ({
+        organization: toPublicOrganizationDto(toDomainOrganizationProfile(organization)),
+        applied: appliedOrganizationIds.has(organization.id)
+      }));
+    },
+
+    async createTeamApplication(userId, organizationId, input: CreateTeamApplicationInput): Promise<TeamApplicationDto> {
+      const player = await prisma.playerProfile.findUnique({
+        where: { userId },
+        include: playerProfileInclude
+      });
+      if (!player || !player.openToOrganizations) throw new HttpError(404, "Profile not found.");
+
+      const organization = await prisma.organizationProfile.findFirst({
+        where: {
+          id: organizationId,
+          visibility: ProfileVisibility.VISIBLE,
+          moderationStatus: ModerationStatus.APPROVED
+        }
+      });
+      if (!organization) throw new HttpError(404, "Organization not found.");
+
+      const application = await prisma.teamApplication.upsert({
+        where: {
+          organizationId_playerProfileId: {
+            organizationId,
+            playerProfileId: player.id
+          }
+        },
+        create: {
+          organizationId,
+          playerProfileId: player.id,
+          message: input.message
+        },
+        update: {}
+      });
+
+      return teamApplicationDto(application.id);
+    },
+
+    async listMyApplications(userId): Promise<TeamApplicationDto[]> {
+      const player = await prisma.playerProfile.findUnique({ where: { userId } });
+      if (!player) return [];
+      const applications = await prisma.teamApplication.findMany({
+        where: { playerProfileId: player.id },
+        orderBy: { createdAt: "desc" }
+      });
+      return Promise.all(applications.map((application) => teamApplicationDto(application.id)));
+    },
+
+    async listOrganizationApplications(userId): Promise<TeamApplicationDto[]> {
+      const organization = await prisma.organizationProfile.findUnique({ where: { ownerUserId: userId } });
+      if (!organization) return [];
+      const applications = await prisma.teamApplication.findMany({
+        where: {
+          organizationId: organization.id,
+          playerProfile: {
+            openToOrganizations: true
+          }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+      return Promise.all(applications.map((application) => teamApplicationDto(application.id)));
+    },
+
+    async updateApplicationStatus(userId, applicationId, input: UpdateApplicationStatusInput): Promise<TeamApplicationDto> {
+      const organization = await prisma.organizationProfile.findUnique({ where: { ownerUserId: userId } });
+      if (!organization) throw new HttpError(404, "Organization not found.");
+
+      const existing = await prisma.teamApplication.findFirst({
+        where: {
+          id: applicationId,
+          organizationId: organization.id
+        }
+      });
+      if (!existing) throw new HttpError(404, "Application not found.");
+
+      await prisma.teamApplication.update({
+        where: { id: applicationId },
+        data: { status: toPrismaApplicationStatus(input.status) }
+      });
+
+      return teamApplicationDto(applicationId);
     }
   };
+
+  async function teamApplicationDto(applicationId: string): Promise<TeamApplicationDto> {
+    const application = await prisma.teamApplication.findUnique({
+      where: { id: applicationId },
+      include: {
+        organization: true,
+        playerProfile: {
+          include: playerProfileInclude
+        }
+      }
+    });
+    if (!application) throw new HttpError(404, "Application not found.");
+
+    return {
+      id: application.id,
+      status: toDomainApplicationStatus(application.status),
+      message: application.message,
+      createdAt: application.createdAt.toISOString(),
+      updatedAt: application.updatedAt.toISOString(),
+      organization: toPublicOrganizationDto(toDomainOrganizationProfile(application.organization)),
+      player: toPublicDiscoveryProfile(toDomainPlayerProfile(application.playerProfile)).profile
+    };
+  }
 }
 
 function hueFromString(value: string): number {

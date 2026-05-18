@@ -5,7 +5,11 @@ import type {
   GAME_CODES,
   LANGUAGES,
   LIKE_ACTIONS,
-  REGIONS
+  REGIONS,
+  USER_INTENTS,
+  RECRUITER_ROLES,
+  ORGANIZATION_TYPES,
+  APPLICATION_STATUSES
 } from "./constants.js";
 
 export type GameCode = (typeof GAME_CODES)[number];
@@ -15,6 +19,10 @@ export type Region = (typeof REGIONS)[number];
 export type Language = (typeof LANGUAGES)[number];
 export type ContactType = (typeof CONTACT_TYPES)[number];
 export type LikeAction = (typeof LIKE_ACTIONS)[number];
+export type UserIntent = (typeof USER_INTENTS)[number];
+export type RecruiterRole = (typeof RECRUITER_ROLES)[number];
+export type OrganizationType = (typeof ORGANIZATION_TYPES)[number];
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 export type ProfileVisibility = "visible" | "hidden";
 export type ModerationStatus = "pending" | "approved" | "rejected" | "restricted";
@@ -25,6 +33,7 @@ export interface User {
   id: string;
   email: string;
   role: UserRole;
+  intent: UserIntent | null;
   createdAt: string;
 }
 
@@ -69,6 +78,7 @@ export interface PlayerProfile {
   moderationStatus: ModerationStatus;
   isOnline: boolean;
   isVerified: boolean;
+  openToOrganizations: boolean;
   avatarHue: number;
   contacts: ProfileContact[];
   providerAccounts: ProviderAccount[];
@@ -135,4 +145,62 @@ export interface MatchSummaryDto {
   profile: DiscoveryProfile;
   unreadCount: number;
   lastMessage: string | null;
+}
+
+export interface RecruiterProfile {
+  id: string;
+  userId: string;
+  role: RecruiterRole;
+  displayName: string;
+  contacts: ProfileContact[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationProfile {
+  id: string;
+  ownerUserId: string;
+  type: OrganizationType;
+  name: string;
+  game: GameCode;
+  region: Region;
+  targetEloMin: number;
+  targetEloMax: number;
+  neededRoles: Cs2Role[];
+  languages: Language[];
+  description: string;
+  isRecruiting: boolean;
+  visibility: ProfileVisibility;
+  moderationStatus: ModerationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicOrganizationDto {
+  id: string;
+  type: OrganizationType;
+  name: string;
+  game: GameCode;
+  region: Region;
+  targetEloMin: number;
+  targetEloMax: number;
+  neededRoles: Cs2Role[];
+  languages: Language[];
+  description: string;
+  isRecruiting: boolean;
+}
+
+export interface OrganizationFeedItemDto {
+  organization: PublicOrganizationDto;
+  applied: boolean;
+}
+
+export interface TeamApplicationDto {
+  id: string;
+  status: ApplicationStatus;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+  organization: PublicOrganizationDto;
+  player: DiscoveryProfile;
 }

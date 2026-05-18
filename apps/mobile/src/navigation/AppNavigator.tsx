@@ -15,9 +15,12 @@ import { MyProfileScreen } from "../screens/MyProfileScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { ModerationScreen } from "../screens/ModerationScreen";
 import { AnalyticsScreen } from "../screens/AnalyticsScreen";
-import type { DiscoveryProfile } from "@party-up/domain";
+import { OrganizationsFeedScreen } from "../screens/OrganizationsFeedScreen";
+import { OrganizationProfileScreen } from "../screens/OrganizationProfileScreen";
+import { PurposeSelectionScreen } from "../screens/PurposeSelectionScreen";
+import type { DiscoveryProfile, User } from "@party-up/domain";
 
-type Tab = "discovery" | "likes" | "chats" | "profile";
+type Tab = "discovery" | "teams" | "likes" | "chats" | "profile";
 type Overlay =
   | { type: "profile-detail"; profile: DiscoveryProfile }
   | { type: "edit-profile" }
@@ -31,24 +34,55 @@ export function AppNavigator() {
   const [sessionToken, setSessionToken] = useState<string | null>(
     process.env.EXPO_PUBLIC_SKIP_ONBOARDING === "1" ? "mock-token" : null
   );
+  const [sessionUser, setSessionUser] = useState<User | null>(
+    process.env.EXPO_PUBLIC_SKIP_ONBOARDING === "1" ? mockSessionUser : null
+  );
   const api = useMemo<PartyUpApi>(() => createApiClient(sessionToken), [sessionToken]);
   const [tab, setTab] = useState<Tab>("discovery");
   const [overlay, setOverlay] = useState<Overlay>(null);
+  const [profileRevision, setProfileRevision] = useState(0);
 
   if (!sessionToken) {
-    return <OnboardingScreen authApi={authApi} onAuthenticated={setSessionToken} />;
+    return (
+      <OnboardingScreen
+        authApi={authApi}
+        onAuthenticated={(token, user) => {
+          setSessionToken(token);
+          setSessionUser(user);
+          setTab(user.intent === "recruiter" ? "profile" : "discovery");
+        }}
+      />
+    );
   }
+
+  if (!sessionUser?.intent) {
+    return (
+      <PurposeSelectionScreen
+        api={api}
+        onSelected={(user) => {
+          setSessionUser(user);
+          setTab("profile");
+          setOverlay(user.intent === "player" ? { type: "edit-profile" } : null);
+        }}
+      />
+    );
+  }
+
+  const tabs = sessionUser.intent === "recruiter" ? RECRUITER_TABS : PLAYER_TABS;
+  const activeTab = sessionUser.intent === "recruiter" ? "profile" : tab;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <View style={styles.root}>
-        {tab === "discovery" ? (
+        {activeTab === "discovery" ? (
           <DiscoveryScreen api={api} onOpenProfile={(profile) => setOverlay({ type: "profile-detail", profile })} />
         ) : null}
-        {tab === "likes" ? <LikesScreen api={api} /> : null}
-        {tab === "chats" ? <ChatsScreen api={api} /> : null}
-        {tab === "profile" ? (
+        {activeTab === "teams" ? <OrganizationsFeedScreen api={api} /> : null}
+        {activeTab === "likes" ? <LikesScreen api={api} /> : null}
+        {activeTab === "chats" ? <ChatsScreen api={api} /> : null}
+        {activeTab === "profile" && sessionUser.intent === "player" ? (
           <MyProfileScreen
+            key={profileRevision}
             api={api}
             onEditProfile={() => setOverlay({ type: "edit-profile" })}
             onOpenSettings={() => setOverlay({ type: "settings" })}
@@ -56,11 +90,21 @@ export function AppNavigator() {
             onOpenModeration={() => setOverlay({ type: "moderation" })}
           />
         ) : null}
-        <TabBar tab={tab} onChange={setTab} likesCount={6} chatsCount={2} />
+        {activeTab === "profile" && sessionUser.intent === "recruiter" ? <OrganizationProfileScreen api={api} /> : null}
+        <TabBar tabs={tabs} tab={activeTab} onChange={setTab} likesCount={6} chatsCount={2} />
         {overlay?.type === "profile-detail" ? (
           <ProfileDetailScreen profile={overlay.profile} api={api} onClose={() => setOverlay(null)} />
         ) : null}
-        {overlay?.type === "edit-profile" ? <EditProfileScreen api={api} onClose={() => setOverlay(null)} /> : null}
+        {overlay?.type === "edit-profile" ? (
+          <EditProfileScreen
+            api={api}
+            requireProfile={sessionUser.intent === "player" && tab === "profile"}
+            onClose={() => {
+              setOverlay(null);
+              setProfileRevision((current) => current + 1);
+            }}
+          />
+        ) : null}
         {overlay?.type === "settings" ? <SettingsScreen onClose={() => setOverlay(null)} /> : null}
         {overlay?.type === "moderation" ? <ModerationScreen onClose={() => setOverlay(null)} /> : null}
         {overlay?.type === "analytics" ? <AnalyticsScreen onClose={() => setOverlay(null)} /> : null}
@@ -77,16 +121,42 @@ interface TabConfig {
 
 const TABS: TabConfig[] = [
   { id: "discovery", label: "Анкеты", icon: "cards" },
+  { id: "teams", label: "Команды", icon: "flag" },
   { id: "likes", label: "Лайки", icon: "heart" },
   { id: "chats", label: "Чаты", icon: "chat" },
   { id: "profile", label: "Профиль", icon: "user" }
 ];
 
-function TabBar({ tab, onChange, likesCount, chatsCount }: { tab: Tab; onChange: (tab: Tab) => void; likesCount: number; chatsCount: number }) {
+const PLAYER_TABS = TABS;
+const RECRUITER_TABS: TabConfig[] = [
+  { id: "profile", label: "Организация", icon: "flag" }
+];
+
+const mockSessionUser: User = {
+  id: "user_me",
+  email: "demo@partyup.local",
+  role: "admin",
+  intent: "player",
+  createdAt: new Date("2026-05-17T12:00:00.000Z").toISOString()
+};
+
+function TabBar({
+  tabs,
+  tab,
+  onChange,
+  likesCount,
+  chatsCount
+}: {
+  tabs: TabConfig[];
+  tab: Tab;
+  onChange: (tab: Tab) => void;
+  likesCount: number;
+  chatsCount: number;
+}) {
   return (
     <SafeAreaView edges={["bottom"]} style={styles.tabSafe}>
       <View style={styles.tabs}>
-        {TABS.map((item) => {
+        {tabs.map((item) => {
           const active = tab === item.id;
           const badge = item.id === "likes" ? likesCount : item.id === "chats" ? chatsCount : 0;
           const color = active ? colors.accent : colors.textMuted;

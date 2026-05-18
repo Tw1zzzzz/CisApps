@@ -6,6 +6,7 @@ export const seedUser: User = {
   id: "user_me",
   email: "demo@partyup.local",
   role: "player",
+  intent: "player",
   createdAt: now
 };
 
@@ -23,6 +24,7 @@ export const seedProfiles: PlayerProfile[] = [
     moderationStatus: "approved",
     isOnline: true,
     isVerified: true,
+    openToOrganizations: true,
     avatarHue: 210,
     contacts: [
       { type: "telegram", value: "@crowley", isPrivate: true },
@@ -67,6 +69,7 @@ export const seedProfiles: PlayerProfile[] = [
     moderationStatus: "approved",
     isOnline: true,
     isVerified: true,
+    openToOrganizations: true,
     avatarHue: 260,
     contacts: [{ type: "telegram", value: "@shadowclap", isPrivate: true }],
     providerAccounts: [
@@ -107,6 +110,7 @@ export const seedProfiles: PlayerProfile[] = [
     moderationStatus: "approved",
     isOnline: true,
     isVerified: true,
+    openToOrganizations: true,
     avatarHue: 320,
     contacts: [{ type: "telegram", value: "@mira_ex", isPrivate: true }],
     providerAccounts: [
@@ -147,6 +151,7 @@ export const seedProfiles: PlayerProfile[] = [
     moderationStatus: "approved",
     isOnline: true,
     isVerified: false,
+    openToOrganizations: false,
     avatarHue: 0,
     contacts: [{ type: "telegram", value: "@hidden", isPrivate: true }],
     providerAccounts: [],

@@ -1,18 +1,26 @@
 import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { PrivateProfileDto } from "@party-up/domain";
 import type { PartyUpApi } from "../api/types";
 import { Button, Muted, StateView, Title } from "../components/Primitives";
 import { colors, radius, spacing } from "../design/tokens";
 import { useAsync } from "../state/useAsync";
 
-export function EditProfileScreen({ api, onClose }: { api: PartyUpApi; onClose: () => void }) {
+export function EditProfileScreen({
+  api,
+  onClose,
+  requireProfile = false
+}: {
+  api: PartyUpApi;
+  onClose: () => void;
+  requireProfile?: boolean;
+}) {
   const load = useCallback(() => api.getMe(), [api]);
   const { state, reload } = useAsync(load);
 
   if (state.status === "loading" || state.status === "empty" || state.status === "error") {
     if (state.status === "error") {
-      return <CreateForm api={api} onClose={onClose} />;
+      return <CreateForm api={api} onClose={onClose} requireProfile={requireProfile} />;
     }
 
     return (
@@ -25,13 +33,14 @@ export function EditProfileScreen({ api, onClose }: { api: PartyUpApi; onClose: 
   return <EditForm data={state.data} api={api} onClose={onClose} />;
 }
 
-function CreateForm({ api, onClose }: { api: PartyUpApi; onClose: () => void }) {
+function CreateForm({ api, onClose, requireProfile }: { api: PartyUpApi; onClose: () => void; requireProfile: boolean }) {
   const [nickname, setNickname] = useState("new_player");
   const [displayName, setDisplayName] = useState("Новый игрок");
   const [age, setAge] = useState("21");
   const [elo, setElo] = useState("1200");
   const [bio, setBio] = useState("Ищу стабильное пати для CS2, играю спокойно и с микрофоном.");
   const [availability, setAvailability] = useState("Вечером · 19-23");
+  const [openToOrganizations, setOpenToOrganizations] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +56,7 @@ function CreateForm({ api, onClose }: { api: PartyUpApi; onClose: () => void }) 
         bio,
         languages: ["RU", "EN"],
         contacts: [],
+        openToOrganizations,
         gameProfile: {
           role: "Rifler",
           elo: Number(elo),
@@ -76,12 +86,21 @@ function CreateForm({ api, onClose }: { api: PartyUpApi; onClose: () => void }) 
         <Field label="ELO" value={elo} onChangeText={setElo} />
         <Field label="О себе" value={bio} onChangeText={setBio} multiline />
         <Field label="Когда играешь" value={availability} onChangeText={setAvailability} />
+        <ToggleRow
+          value={openToOrganizations}
+          onChange={setOpenToOrganizations}
+          title="Показывать организациям"
+          body="Миксы, стаки и команды смогут найти твою анкету и оценить заявку."
+        />
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {requireProfile ? <Button onPress={create}>{saving ? "Создаём" : "Создать"}</Button> : null}
       </ScrollView>
-      <View style={styles.footer}>
-        <Button tone="ghost" onPress={onClose}>Позже</Button>
-        <Button onPress={create}>{saving ? "Создаём" : "Создать"}</Button>
-      </View>
+      {requireProfile ? null : (
+        <View style={styles.footer}>
+          <Button tone="ghost" onPress={onClose}>Позже</Button>
+          <Button onPress={create}>{saving ? "Создаём" : "Создать"}</Button>
+        </View>
+      )}
     </View>
   );
 }
@@ -90,6 +109,7 @@ function EditForm({ data, api, onClose }: { data: PrivateProfileDto; api: PartyU
   const [displayName, setDisplayName] = useState(data.profile.displayName);
   const [bio, setBio] = useState(data.profile.bio);
   const [availability, setAvailability] = useState(data.profile.gameProfile.availability);
+  const [openToOrganizations, setOpenToOrganizations] = useState(data.profile.openToOrganizations);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,6 +120,7 @@ function EditForm({ data, api, onClose }: { data: PrivateProfileDto; api: PartyU
       await api.updateProfile({
         displayName,
         bio,
+        openToOrganizations,
         gameProfile: { availability }
       });
       onClose();
@@ -118,6 +139,12 @@ function EditForm({ data, api, onClose }: { data: PrivateProfileDto; api: PartyU
         <Field label="Имя" value={displayName} onChangeText={setDisplayName} />
         <Field label="О себе" value={bio} onChangeText={setBio} multiline />
         <Field label="Когда играешь" value={availability} onChangeText={setAvailability} />
+        <ToggleRow
+          value={openToOrganizations}
+          onChange={setOpenToOrganizations}
+          title="Показывать организациям"
+          body="Если выключить, профиль не должен попадать в рекрутерские сценарии."
+        />
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
       <View style={styles.footer}>
@@ -150,6 +177,30 @@ function Field({
         placeholderTextColor={colors.textMuted}
       />
     </View>
+  );
+}
+
+function ToggleRow({
+  value,
+  onChange,
+  title,
+  body
+}: {
+  value: boolean;
+  onChange: (value: boolean) => void;
+  title: string;
+  body: string;
+}) {
+  return (
+    <Pressable style={styles.toggleRow} onPress={() => onChange(!value)}>
+      <View style={styles.toggleCopy}>
+        <Text style={styles.toggleTitle}>{title}</Text>
+        <Text style={styles.toggleBody}>{body}</Text>
+      </View>
+      <View style={[styles.switchTrack, value && styles.switchTrackOn]}>
+        <View style={[styles.switchThumb, value && styles.switchThumbOn]} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -192,6 +243,54 @@ const styles = StyleSheet.create({
   error: {
     color: colors.dislike,
     fontWeight: "700"
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md
+  },
+  toggleCopy: {
+    flex: 1,
+    gap: 4
+  },
+  toggleTitle: {
+    color: colors.text,
+    fontWeight: "800",
+    fontSize: 14
+  },
+  toggleBody: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600"
+  },
+  switchTrack: {
+    width: 46,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surface2,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    padding: 3
+  },
+  switchTrackOn: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent
+  },
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.textMuted
+  },
+  switchThumbOn: {
+    transform: [{ translateX: 18 }],
+    backgroundColor: colors.accent
   },
   footer: {
     position: "absolute",

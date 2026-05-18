@@ -5,6 +5,7 @@ import { Button, Muted, Surface } from "../components/Primitives";
 import { Icon } from "../components/Icon";
 import { colors, fonts, radius, spacing } from "../design/tokens";
 import type { PartyUpAuthApi } from "../api/types";
+import type { User } from "@party-up/domain";
 
 type AuthStep = "email" | "otp";
 
@@ -13,7 +14,7 @@ export function OnboardingScreen({
   onAuthenticated
 }: {
   authApi: PartyUpAuthApi;
-  onAuthenticated: (token: string) => void;
+  onAuthenticated: (token: string, user: User) => void;
 }) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("demo@partyup.local");
@@ -56,7 +57,7 @@ export function OnboardingScreen({
     setMessage(null);
     try {
       const response = await authApi.verifyOtp(normalizedEmail, otp);
-      onAuthenticated(response.token);
+      onAuthenticated(response.token, response.user);
     } catch {
       setMessage("Код не подошёл или истёк. Запроси новый код.");
     } finally {

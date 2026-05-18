@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { colors, fonts, radius, spacing, typography } from "../design/tokens";
 
 export function Screen({ children, padded = true }: { children: ReactNode; padded?: boolean }) {
   return <View style={[styles.screen, padded && styles.padded]}>{children}</View>;
 }
 
-export function Surface({ children, style, padding = spacing.lg }: { children: ReactNode; style?: ViewStyle; padding?: number }) {
+export function Surface({ children, style, padding = spacing.lg }: { children: ReactNode; style?: StyleProp<ViewStyle>; padding?: number }) {
   return <View style={[styles.surface, { padding }, style]}>{children}</View>;
 }
 

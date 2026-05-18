@@ -24,6 +24,7 @@ test("maps Prisma enum casing and dates into domain DTOs", () => {
     id: "user_1",
     email: "demo@partyup.local",
     role: UserRole.ADMIN,
+    intent: null,
     createdAt,
     updatedAt
   });
@@ -32,6 +33,7 @@ test("maps Prisma enum casing and dates into domain DTOs", () => {
     id: "user_1",
     email: "demo@partyup.local",
     role: "admin",
+    intent: null,
     createdAt: "2026-05-17T12:00:00.000Z"
   });
   assert.equal(toDomainLikeAction(LikeAction.SUPER_LIKE), "super-like");
@@ -52,6 +54,7 @@ test("maps Prisma profile relations and keeps public discovery sanitized", () =>
     moderationStatus: ModerationStatus.APPROVED,
     isOnline: true,
     isVerified: true,
+    openToOrganizations: true,
     avatarHue: 210,
     createdAt,
     updatedAt,
@@ -104,4 +107,3 @@ test("maps Prisma profile relations and keeps public discovery sanitized", () =>
     verified: true
   });
 });
-

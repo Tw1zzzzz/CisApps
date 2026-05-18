@@ -1,19 +1,28 @@
 import {
+  ApplicationStatus as PrismaApplicationStatus,
   LikeAction as PrismaLikeAction,
   ModerationStatus as PrismaModerationStatus,
+  OrganizationType as PrismaOrganizationType,
   ProfileVisibility as PrismaProfileVisibility,
   Provider as PrismaProvider,
+  RecruiterRole as PrismaRecruiterRole,
+  UserIntent as PrismaUserIntent,
   UserRole as PrismaUserRole,
   type Prisma,
   type User as PrismaUser
 } from "@prisma/client";
 import {
+  APPLICATION_STATUSES,
   CONTACT_TYPES,
   CS2_MAPS,
   CS2_ROLES,
   GAME_CODES,
   LANGUAGES,
+  ORGANIZATION_TYPES,
+  RECRUITER_ROLES,
   REGIONS,
+  USER_INTENTS,
+  type ApplicationStatus,
   type ContactType,
   type Cs2Map,
   type Cs2Role,
@@ -23,15 +32,22 @@ import {
   type LikeAction,
   type Match,
   type ModerationStatus,
+  type OrganizationProfile,
+  type OrganizationType,
   type PlayerProfile,
   type ProfileContact,
   type ProfileVisibility,
   type Provider,
   type ProviderAccount,
+  type PublicOrganizationDto,
+  type RecruiterProfile,
+  type RecruiterRole,
   type Region,
   type User,
+  type UserIntent,
   type UserRole
 } from "@party-up/domain";
+import { profileContactSchema } from "@party-up/domain";
 
 export const playerProfileInclude = {
   gameProfile: true,
@@ -43,11 +59,15 @@ export type PrismaPlayerProfileWithRelations = Prisma.PlayerProfileGetPayload<{
   include: typeof playerProfileInclude;
 }>;
 
+export type PrismaRecruiterProfile = Prisma.RecruiterProfileGetPayload<Record<string, never>>;
+export type PrismaOrganizationProfile = Prisma.OrganizationProfileGetPayload<Record<string, never>>;
+
 export function toDomainUser(user: PrismaUser): User {
   return {
     id: user.id,
     email: user.email,
     role: toDomainUserRole(user.role),
+    intent: user.intent ? toDomainUserIntent(user.intent) : null,
     createdAt: user.createdAt.toISOString()
   };
 }
@@ -70,6 +90,7 @@ export function toDomainPlayerProfile(profile: PrismaPlayerProfileWithRelations)
     moderationStatus: toDomainModerationStatus(profile.moderationStatus),
     isOnline: profile.isOnline,
     isVerified: profile.isVerified,
+    openToOrganizations: profile.openToOrganizations,
     avatarHue: profile.avatarHue,
     contacts: profile.contacts.map(toDomainProfileContact),
     providerAccounts: profile.providerAccounts.map(toDomainProviderAccount),
@@ -141,6 +162,50 @@ export function toPrismaProvider(provider: Provider): PrismaProvider {
   }
 }
 
+export function toPrismaUserIntent(intent: UserIntent): PrismaUserIntent {
+  switch (intent) {
+    case "player":
+      return PrismaUserIntent.PLAYER;
+    case "recruiter":
+      return PrismaUserIntent.RECRUITER;
+  }
+}
+
+export function toPrismaRecruiterRole(role: RecruiterRole): PrismaRecruiterRole {
+  switch (role) {
+    case "manager":
+      return PrismaRecruiterRole.MANAGER;
+    case "coach":
+      return PrismaRecruiterRole.COACH;
+    case "analyst":
+      return PrismaRecruiterRole.ANALYST;
+  }
+}
+
+export function toPrismaOrganizationType(type: OrganizationType): PrismaOrganizationType {
+  switch (type) {
+    case "mix":
+      return PrismaOrganizationType.MIX;
+    case "stack":
+      return PrismaOrganizationType.STACK;
+    case "team":
+      return PrismaOrganizationType.TEAM;
+  }
+}
+
+export function toPrismaApplicationStatus(status: ApplicationStatus): PrismaApplicationStatus {
+  switch (status) {
+    case "pending":
+      return PrismaApplicationStatus.PENDING;
+    case "accepted":
+      return PrismaApplicationStatus.ACCEPTED;
+    case "rejected":
+      return PrismaApplicationStatus.REJECTED;
+    case "withdrawn":
+      return PrismaApplicationStatus.WITHDRAWN;
+  }
+}
+
 export function toDomainMatch(match: { id: string; userAId: string; userBId: string; createdAt: Date }): Match {
   return {
     id: match.id,
@@ -150,12 +215,70 @@ export function toDomainMatch(match: { id: string; userAId: string; userBId: str
   };
 }
 
+export function toDomainRecruiterProfile(profile: PrismaRecruiterProfile): RecruiterProfile {
+  return {
+    id: profile.id,
+    userId: profile.userId,
+    role: toDomainRecruiterRole(profile.role),
+    displayName: profile.displayName,
+    contacts: parseContacts(profile.contacts),
+    createdAt: profile.createdAt.toISOString(),
+    updatedAt: profile.updatedAt.toISOString()
+  };
+}
+
+export function toDomainOrganizationProfile(profile: PrismaOrganizationProfile): OrganizationProfile {
+  return {
+    id: profile.id,
+    ownerUserId: profile.ownerUserId,
+    type: toDomainOrganizationType(profile.type),
+    name: profile.name,
+    game: oneOf(profile.game, GAME_CODES, "game"),
+    region: oneOf(profile.region, REGIONS, "region"),
+    targetEloMin: profile.targetEloMin,
+    targetEloMax: profile.targetEloMax,
+    neededRoles: profile.neededRoles.map((role) => oneOf(role, CS2_ROLES, "role")),
+    languages: profile.languages.map((language) => oneOf(language, LANGUAGES, "language")),
+    description: profile.description,
+    isRecruiting: profile.isRecruiting,
+    visibility: toDomainProfileVisibility(profile.visibility),
+    moderationStatus: toDomainModerationStatus(profile.moderationStatus),
+    createdAt: profile.createdAt.toISOString(),
+    updatedAt: profile.updatedAt.toISOString()
+  };
+}
+
+export function toPublicOrganizationDto(profile: OrganizationProfile): PublicOrganizationDto {
+  return {
+    id: profile.id,
+    type: profile.type,
+    name: profile.name,
+    game: profile.game,
+    region: profile.region,
+    targetEloMin: profile.targetEloMin,
+    targetEloMax: profile.targetEloMax,
+    neededRoles: profile.neededRoles,
+    languages: profile.languages,
+    description: profile.description,
+    isRecruiting: profile.isRecruiting
+  };
+}
+
 function toDomainUserRole(role: PrismaUserRole): UserRole {
   switch (role) {
     case PrismaUserRole.PLAYER:
       return "player";
     case PrismaUserRole.ADMIN:
       return "admin";
+  }
+}
+
+function toDomainUserIntent(intent: PrismaUserIntent): UserIntent {
+  switch (intent) {
+    case PrismaUserIntent.PLAYER:
+      return "player";
+    case PrismaUserIntent.RECRUITER:
+      return "recruiter";
   }
 }
 
@@ -190,6 +313,41 @@ function toDomainProvider(provider: PrismaProvider): Provider {
   }
 }
 
+function toDomainRecruiterRole(role: PrismaRecruiterRole): RecruiterRole {
+  switch (role) {
+    case PrismaRecruiterRole.MANAGER:
+      return "manager";
+    case PrismaRecruiterRole.COACH:
+      return "coach";
+    case PrismaRecruiterRole.ANALYST:
+      return "analyst";
+  }
+}
+
+function toDomainOrganizationType(type: PrismaOrganizationType): OrganizationType {
+  switch (type) {
+    case PrismaOrganizationType.MIX:
+      return "mix";
+    case PrismaOrganizationType.STACK:
+      return "stack";
+    case PrismaOrganizationType.TEAM:
+      return "team";
+  }
+}
+
+export function toDomainApplicationStatus(status: PrismaApplicationStatus): ApplicationStatus {
+  switch (status) {
+    case PrismaApplicationStatus.PENDING:
+      return "pending";
+    case PrismaApplicationStatus.ACCEPTED:
+      return "accepted";
+    case PrismaApplicationStatus.REJECTED:
+      return "rejected";
+    case PrismaApplicationStatus.WITHDRAWN:
+      return "withdrawn";
+  }
+}
+
 function toDomainProfileContact(contact: {
   type: string;
   value: string;
@@ -200,6 +358,11 @@ function toDomainProfileContact(contact: {
     value: contact.value,
     isPrivate: contact.isPrivate
   };
+}
+
+function parseContacts(value: Prisma.JsonValue): ProfileContact[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => profileContactSchema.parse(item));
 }
 
 function toDomainProviderAccount(account: {
@@ -253,4 +416,3 @@ function oneOf<const T extends readonly string[]>(value: string, values: T, fiel
 
   throw new Error(`Invalid ${field}: ${value}`);
 }
-
