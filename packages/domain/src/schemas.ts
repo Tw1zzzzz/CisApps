@@ -130,6 +130,15 @@ export const updateApplicationStatusSchema = z.object({
   status: z.enum(["accepted", "rejected"])
 });
 
+export const organizationModerationQuerySchema = z.object({
+  status: z.enum(["all", "pending", "approved", "rejected", "restricted"]).optional().default("pending")
+});
+
+export const updateOrganizationModerationSchema = z.object({
+  status: z.enum(["approved", "rejected", "restricted"]),
+  visibility: z.enum(["visible", "hidden"]).optional()
+});
+
 export const likeTargetParamsSchema = z.object({
   id: z.string().min(1)
 });
@@ -143,3 +152,5 @@ export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
 export type CreateTeamApplicationInput = z.infer<typeof createTeamApplicationSchema>;
 export type UpdateApplicationStatusInput = z.infer<typeof updateApplicationStatusSchema>;
+export type OrganizationModerationQuery = z.infer<typeof organizationModerationQuerySchema>;
+export type UpdateOrganizationModerationInput = z.infer<typeof updateOrganizationModerationSchema>;

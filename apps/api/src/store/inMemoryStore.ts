@@ -7,7 +7,9 @@ import {
   type CreateRecruiterProfileInput,
   type CreateTeamApplicationInput,
   type DiscoveryFilters,
+  type ModerationStatus,
   type OrganizationFeedItemDto,
+  type OrganizationModerationItemDto,
   type OrganizationProfile,
   type LikeSummaryDto,
   type LikeAction,
@@ -21,6 +23,7 @@ import {
   type SetUserIntentInput,
   type TeamApplicationDto,
   type UpdateApplicationStatusInput,
+  type UpdateOrganizationModerationInput,
   type UpdateOrganizationInput,
   type UpdateProfileInput,
   type User
@@ -66,6 +69,8 @@ export interface PartyUpStore {
   listMyApplications(userId: string): Promise<TeamApplicationDto[]>;
   listOrganizationApplications(userId: string): Promise<TeamApplicationDto[]>;
   updateApplicationStatus(userId: string, applicationId: string, input: UpdateApplicationStatusInput): Promise<TeamApplicationDto>;
+  listOrganizationModerationQueue(status: ModerationStatus | "all"): Promise<OrganizationModerationItemDto[]>;
+  updateOrganizationModeration(organizationId: string, input: UpdateOrganizationModerationInput): Promise<OrganizationModerationItemDto>;
 }
 
 export function createInMemoryStore(): PartyUpStore {
@@ -348,7 +353,7 @@ export function createInMemoryStore(): PartyUpStore {
         description: input.description,
         isRecruiting: input.isRecruiting,
         visibility: "visible",
-        moderationStatus: "approved",
+        moderationStatus: "pending",
         createdAt: now,
         updatedAt: now
       };
@@ -451,6 +456,26 @@ export function createInMemoryStore(): PartyUpStore {
       };
       applications.set(updated.id, updated);
       return applicationDto(updated);
+    },
+
+    async listOrganizationModerationQueue(status) {
+      return [...organizations.values()]
+        .filter((organization) => status === "all" || organization.moderationStatus === status)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map(organizationModerationItem);
+    },
+
+    async updateOrganizationModeration(organizationId, input) {
+      const current = organizations.get(organizationId);
+      if (!current) throw new HttpError(404, "Organization not found.");
+      const updated: OrganizationProfile = {
+        ...current,
+        moderationStatus: input.status,
+        visibility: input.visibility ?? (input.status === "approved" ? "visible" : "hidden"),
+        updatedAt: new Date().toISOString()
+      };
+      organizations.set(updated.id, updated);
+      return organizationModerationItem(updated);
     }
   };
 
@@ -467,6 +492,16 @@ export function createInMemoryStore(): PartyUpStore {
       updatedAt: application.updatedAt,
       organization: toPublicOrganization(organization),
       player: toPublicDiscoveryProfile(player).profile
+    };
+  }
+
+  function organizationModerationItem(organization: OrganizationProfile): OrganizationModerationItemDto {
+    const owner = users.get(organization.ownerUserId);
+    const recruiter = recruiterProfiles.get(organization.ownerUserId);
+    return {
+      organization,
+      recruiter: recruiter ? { role: recruiter.role, displayName: recruiter.displayName } : null,
+      ownerEmail: owner?.email ?? "unknown@partyup.local"
     };
   }
 }

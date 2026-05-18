@@ -7,7 +7,9 @@ import type {
   LikeSummaryDto,
   LikeAction,
   MatchSummaryDto,
+  ModerationStatus,
   OrganizationFeedItemDto,
+  OrganizationModerationItemDto,
   OrganizationProfile,
   PrivateProfileDto,
   PublicDiscoveryProfileDto,
@@ -42,4 +44,9 @@ export interface PartyUpApi {
   getMyApplications(): Promise<TeamApplicationDto[]>;
   getOrganizationApplications(): Promise<TeamApplicationDto[]>;
   updateApplicationStatus(applicationId: string, status: Extract<ApplicationStatus, "accepted" | "rejected">): Promise<TeamApplicationDto>;
+  getOrganizationModerationQueue(status: ModerationStatus | "all"): Promise<OrganizationModerationItemDto[]>;
+  updateOrganizationModeration(
+    organizationId: string,
+    input: { status: Extract<ModerationStatus, "approved" | "rejected" | "restricted">; visibility?: "visible" | "hidden" }
+  ): Promise<OrganizationModerationItemDto>;
 }

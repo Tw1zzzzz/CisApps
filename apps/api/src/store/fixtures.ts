@@ -5,7 +5,7 @@ const now = new Date("2026-05-17T12:00:00.000Z").toISOString();
 export const seedUser: User = {
   id: "user_me",
   email: "demo@partyup.local",
-  role: "player",
+  role: "admin",
   intent: "player",
   createdAt: now
 };

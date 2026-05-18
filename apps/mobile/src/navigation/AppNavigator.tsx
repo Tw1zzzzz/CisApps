@@ -106,7 +106,7 @@ export function AppNavigator() {
           />
         ) : null}
         {overlay?.type === "settings" ? <SettingsScreen onClose={() => setOverlay(null)} /> : null}
-        {overlay?.type === "moderation" ? <ModerationScreen onClose={() => setOverlay(null)} /> : null}
+        {overlay?.type === "moderation" ? <ModerationScreen api={api} onClose={() => setOverlay(null)} /> : null}
         {overlay?.type === "analytics" ? <AnalyticsScreen onClose={() => setOverlay(null)} /> : null}
       </View>
     </SafeAreaView>

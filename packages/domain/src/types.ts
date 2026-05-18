@@ -204,3 +204,9 @@ export interface TeamApplicationDto {
   organization: PublicOrganizationDto;
   player: DiscoveryProfile;
 }
+
+export interface OrganizationModerationItemDto {
+  organization: OrganizationProfile;
+  recruiter: Pick<RecruiterProfile, "role" | "displayName"> | null;
+  ownerEmail: string;
+}

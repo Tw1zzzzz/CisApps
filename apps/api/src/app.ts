@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import fastify from "fastify";
 import { HttpError } from "./http/errors.js";
+import { registerAdminRoutes } from "./admin/routes.js";
 import { registerAuthDecorator } from "./auth/middleware.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import { registerDiscoveryRoutes } from "./discovery/routes.js";
@@ -27,6 +28,7 @@ export async function buildApp(store: PartyUpStore = createInMemoryStore()) {
   await registerLikeRoutes(app, store);
   await registerMatchRoutes(app, store);
   await registerOrganizationRoutes(app, store);
+  await registerAdminRoutes(app, store);
 
   app.get("/health", async () => ({ ok: true }));
 

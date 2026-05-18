@@ -178,6 +178,76 @@ test("user can choose recruiter intent and create organization", async () => {
   assert.equal(recruiter.statusCode, 200);
   assert.equal(organization.statusCode, 200);
   assert.equal(organization.json<{ organization: { name: string } }>().organization.name, "Flow Team");
+  assert.equal(organization.json<{ organization: { moderationStatus: string } }>().organization.moderationStatus, "pending");
+  await app.close();
+});
+
+test("admin can moderate organization profiles before they enter feed", async () => {
+  const app = await buildApp();
+  const recruiterSession = await signIn("moderated-org@partyup.local", app);
+  await app.inject({
+    method: "POST",
+    url: "/me/recruiter-profile",
+    headers: { authorization: `Bearer ${recruiterSession.token}` },
+    payload: { role: "manager", displayName: "Moderator Target", contacts: [] }
+  });
+  const createdOrg = await app.inject({
+    method: "POST",
+    url: "/me/organization",
+    headers: { authorization: `Bearer ${recruiterSession.token}` },
+    payload: {
+      type: "team",
+      name: "Pending Team",
+      region: "EU West",
+      targetEloMin: 1500,
+      targetEloMax: 2500,
+      neededRoles: ["IGL", "Support"],
+      languages: ["RU", "EN"],
+      description: "Команда ожидает модерацию перед публикацией в ленте.",
+      isRecruiting: true
+    }
+  });
+  const orgId = createdOrg.json<{ organization: { id: string } }>().organization.id;
+
+  const playerSession = await signIn(undefined, app);
+  const hiddenFeed = await app.inject({
+    method: "GET",
+    url: "/organizations/feed",
+    headers: { authorization: `Bearer ${playerSession.token}` }
+  });
+  const forbidden = await app.inject({
+    method: "GET",
+    url: "/admin/moderation/organizations",
+    headers: { authorization: `Bearer ${recruiterSession.token}` }
+  });
+
+  const adminSession = await signIn("demo@partyup.local", app);
+  const pending = await app.inject({
+    method: "GET",
+    url: "/admin/moderation/organizations?status=pending",
+    headers: { authorization: `Bearer ${adminSession.token}` }
+  });
+  const approved = await app.inject({
+    method: "PATCH",
+    url: `/admin/moderation/organizations/${orgId}`,
+    headers: { authorization: `Bearer ${adminSession.token}` },
+    payload: { status: "approved" }
+  });
+  const visibleFeed = await app.inject({
+    method: "GET",
+    url: "/organizations/feed",
+    headers: { authorization: `Bearer ${playerSession.token}` }
+  });
+
+  assert.equal(hiddenFeed.statusCode, 200);
+  assert.equal(hiddenFeed.json<{ organizations: Array<{ organization: { id: string } }> }>().organizations.some((item) => item.organization.id === orgId), false);
+  assert.equal(forbidden.statusCode, 403);
+  assert.equal(pending.statusCode, 200);
+  assert.equal(pending.json<{ organizations: Array<{ organization: { id: string }; ownerEmail: string; recruiter: unknown }> }>().organizations.some((item) => item.organization.id === orgId && item.ownerEmail === "moderated-org@partyup.local"), true);
+  assert.equal(approved.statusCode, 200);
+  assert.equal(approved.json<{ organization: { organization: { moderationStatus: string; visibility: string } } }>().organization.organization.moderationStatus, "approved");
+  assert.equal(approved.json<{ organization: { organization: { moderationStatus: string; visibility: string } } }>().organization.organization.visibility, "visible");
+  assert.equal(visibleFeed.json<{ organizations: Array<{ organization: { id: string } }> }>().organizations.some((item) => item.organization.id === orgId), true);
   await app.close();
 });
 
@@ -207,6 +277,13 @@ test("players can see organization feed and apply once", async () => {
     }
   });
   const orgId = createdOrg.json<{ organization: { id: string } }>().organization.id;
+  const adminSession = await signIn("demo@partyup.local", app);
+  await app.inject({
+    method: "PATCH",
+    url: `/admin/moderation/organizations/${orgId}`,
+    headers: { authorization: `Bearer ${adminSession.token}` },
+    payload: { status: "approved" }
+  });
 
   const { token } = await signIn(undefined, app);
   const feed = await app.inject({
@@ -261,6 +338,13 @@ test("recruiter can review and update incoming application status", async () => 
     }
   });
   const orgId = createdOrg.json<{ organization: { id: string } }>().organization.id;
+  const adminSession = await signIn("demo@partyup.local", app);
+  await app.inject({
+    method: "PATCH",
+    url: `/admin/moderation/organizations/${orgId}`,
+    headers: { authorization: `Bearer ${adminSession.token}` },
+    payload: { status: "approved" }
+  });
 
   const playerSession = await signIn(undefined, app);
   await app.inject({

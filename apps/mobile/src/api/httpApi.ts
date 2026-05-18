@@ -3,7 +3,9 @@ import type {
   LikeAction,
   LikeSummaryDto,
   MatchSummaryDto,
+  ModerationStatus,
   OrganizationFeedItemDto,
+  OrganizationModerationItemDto,
   OrganizationProfile,
   PrivateProfileDto,
   PublicDiscoveryProfileDto,
@@ -106,6 +108,19 @@ export function createHttpApi(token: string): PartyUpApi {
         body: { status }
       });
       return response.application;
+    },
+    async getOrganizationModerationQueue(status: ModerationStatus | "all") {
+      const search = new URLSearchParams({ status });
+      const response = await request<{ organizations: OrganizationModerationItemDto[] }>(`/admin/moderation/organizations?${search.toString()}`, { token });
+      return response.organizations;
+    },
+    async updateOrganizationModeration(organizationId, input) {
+      const response = await request<{ organization: OrganizationModerationItemDto }>(`/admin/moderation/organizations/${organizationId}`, {
+        token,
+        method: "PATCH",
+        body: input
+      });
+      return response.organization;
     }
   };
 }

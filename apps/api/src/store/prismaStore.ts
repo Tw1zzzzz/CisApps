@@ -12,7 +12,9 @@ import {
   type LikeSummaryDto,
   type Match,
   type MatchSummaryDto,
+  type ModerationStatus as DomainModerationStatus,
   type OrganizationFeedItemDto,
+  type OrganizationModerationItemDto,
   type OrganizationProfile,
   type PrivateProfileDto,
   type PublicDiscoveryProfileDto,
@@ -20,6 +22,7 @@ import {
   type SetUserIntentInput,
   type TeamApplicationDto,
   type UpdateApplicationStatusInput,
+  type UpdateOrganizationModerationInput,
   type UpdateOrganizationInput,
   type UpdateProfileInput,
   type User
@@ -38,6 +41,7 @@ import {
   toPrismaLikeAction,
   toPrismaModerationStatus,
   toPrismaOrganizationType,
+  toPrismaProfileVisibility,
   toPrismaRecruiterRole,
   toPrismaUserIntent,
   toPublicOrganizationDto
@@ -412,7 +416,7 @@ export function createPrismaStore(prisma: PrismaClient): PartyUpStore {
           description: input.description,
           isRecruiting: input.isRecruiting,
           visibility: ProfileVisibility.VISIBLE,
-          moderationStatus: ModerationStatus.APPROVED
+          moderationStatus: ModerationStatus.PENDING
         }
       });
 
@@ -544,6 +548,34 @@ export function createPrismaStore(prisma: PrismaClient): PartyUpStore {
       });
 
       return teamApplicationDto(applicationId);
+    },
+
+    async listOrganizationModerationQueue(status: DomainModerationStatus | "all"): Promise<OrganizationModerationItemDto[]> {
+      const organizations = await prisma.organizationProfile.findMany({
+        where: status === "all" ? {} : { moderationStatus: toPrismaModerationStatus(status) },
+        include: organizationModerationInclude,
+        orderBy: { updatedAt: "desc" },
+        take: 100
+      });
+
+      return organizations.map(toOrganizationModerationItem);
+    },
+
+    async updateOrganizationModeration(organizationId, input: UpdateOrganizationModerationInput): Promise<OrganizationModerationItemDto> {
+      const organization = await prisma.organizationProfile.update({
+        where: { id: organizationId },
+        data: {
+          moderationStatus: toPrismaModerationStatus(input.status),
+          visibility: input.visibility
+            ? toPrismaProfileVisibility(input.visibility)
+            : input.status === "approved"
+              ? ProfileVisibility.VISIBLE
+              : ProfileVisibility.HIDDEN
+        },
+        include: organizationModerationInclude
+      });
+
+      return toOrganizationModerationItem(organization);
     }
   };
 
@@ -569,6 +601,31 @@ export function createPrismaStore(prisma: PrismaClient): PartyUpStore {
       player: toPublicDiscoveryProfile(toDomainPlayerProfile(application.playerProfile)).profile
     };
   }
+}
+
+const organizationModerationInclude = {
+  owner: {
+    include: {
+      recruiterProfile: true
+    }
+  }
+} satisfies Prisma.OrganizationProfileInclude;
+
+type PrismaOrganizationWithModerationRelations = Prisma.OrganizationProfileGetPayload<{
+  include: typeof organizationModerationInclude;
+}>;
+
+function toOrganizationModerationItem(organization: PrismaOrganizationWithModerationRelations): OrganizationModerationItemDto {
+  return {
+    organization: toDomainOrganizationProfile(organization),
+    recruiter: organization.owner.recruiterProfile
+      ? {
+          role: toDomainRecruiterProfile(organization.owner.recruiterProfile).role,
+          displayName: organization.owner.recruiterProfile.displayName
+        }
+      : null,
+    ownerEmail: organization.owner.email
+  };
 }
 
 function hueFromString(value: string): number {

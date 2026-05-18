@@ -4,7 +4,9 @@ import {
   type LikeSummaryDto,
   type LikeAction,
   type MatchSummaryDto,
+  type ModerationStatus,
   type OrganizationFeedItemDto,
+  type OrganizationModerationItemDto,
   type OrganizationProfile,
   type PlayerProfile,
   type PrivateProfileDto,
@@ -344,7 +346,7 @@ export const mockApi: PartyUpApi = {
       description: input.description,
       isRecruiting: input.isRecruiting,
       visibility: "visible",
-      moderationStatus: "approved",
+      moderationStatus: "pending",
       createdAt: now,
       updatedAt: new Date().toISOString()
     };
@@ -414,6 +416,22 @@ export const mockApi: PartyUpApi = {
     const application = applications.find((item) => item.id === applicationId);
     if (!application) throw new Error("Application not found.");
     return delay(application);
+  },
+  async getOrganizationModerationQueue(status: ModerationStatus | "all"): Promise<OrganizationModerationItemDto[]> {
+    return delay(organizations
+      .filter((organization) => status === "all" || organization.moderationStatus === status)
+      .map(toModerationItem));
+  },
+  async updateOrganizationModeration(organizationId, input): Promise<OrganizationModerationItemDto> {
+    const index = organizations.findIndex((organization) => organization.id === organizationId);
+    if (index < 0) throw new Error("Organization not found.");
+    organizations[index] = {
+      ...organizations[index]!,
+      moderationStatus: input.status,
+      visibility: input.visibility ?? (input.status === "approved" ? "visible" : "hidden"),
+      updatedAt: new Date().toISOString()
+    };
+    return delay(toModerationItem(organizations[index]!));
   }
 };
 
@@ -446,5 +464,16 @@ function toPublicOrganization(organization: OrganizationProfile) {
     languages: organization.languages,
     description: organization.description,
     isRecruiting: organization.isRecruiting
+  };
+}
+
+function toModerationItem(organization: OrganizationProfile): OrganizationModerationItemDto {
+  return {
+    organization,
+    recruiter: {
+      role: "manager",
+      displayName: "Demo Recruiter"
+    },
+    ownerEmail: "recruiter@partyup.local"
   };
 }
